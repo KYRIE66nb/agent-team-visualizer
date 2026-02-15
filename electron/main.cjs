@@ -1,6 +1,9 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, ipcMain } = require('electron');
 const fs = require('fs');
 const path = require('path');
+
+const WATCH_MODE = process.env.ATV_WATCH_MODE === '1';
+const WATCH_DIR = process.env.ATV_WATCH_DIR || path.join(app.getPath('home'), '.openclaw', 'workspace', 'projects', 'interview-grill', 'runs');
 
 const DEV_URL = process.env.ATV_DEV_URL || 'http://localhost:5177';
 const FALLBACK_DATA_PREFIX = 'data:text/html';
@@ -67,7 +70,40 @@ function initializeLogging() {
   writeMainLog('INFO', 'Initialized main-process logging', {
     logFilePath,
     userDataPath: app.getPath('userData'),
+    watchMode: WATCH_MODE,
+    watchDir: WATCH_DIR,
   });
+}
+
+function listJsonlFiles(dir) {
+  try {
+    if (!fs.existsSync(dir)) return [];
+    return fs
+      .readdirSync(dir)
+      .filter((name) => name.toLowerCase().endsWith('.jsonl'))
+      .map((name) => path.join(dir, name));
+  } catch (_error) {
+    return [];
+  }
+}
+
+function pickLatestJsonl(dir) {
+  const files = listJsonlFiles(dir);
+  let latest = null;
+  let latestMtime = 0;
+  for (const f of files) {
+    try {
+      const st = fs.statSync(f);
+      const m = st.mtimeMs || 0;
+      if (m >= latestMtime) {
+        latestMtime = m;
+        latest = f;
+      }
+    } catch (_error) {
+      // ignore
+    }
+  }
+  return latest;
 }
 
 function escapeHtml(input) {
@@ -141,6 +177,21 @@ async function createWindow() {
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.cjs'),
     },
+  });
+
+  ipcMain.handle('atv:getWatchConfig', () => {
+    return { enabled: WATCH_MODE, dir: WATCH_DIR };
+  });
+
+  ipcMain.handle('atv:readLatestJsonl', () => {
+    const latest = pickLatestJsonl(WATCH_DIR);
+    if (!latest) return { ok: false, error: 'no-jsonl-found', dir: WATCH_DIR };
+    try {
+      const text = fs.readFileSync(latest, 'utf8');
+      return { ok: true, filePath: latest, text };
+    } catch (error) {
+      return { ok: false, error: error?.message || String(error), dir: WATCH_DIR };
+    }
   });
 
   const attemptedTarget = app.isPackaged

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { parseJsonl, sortByTs } from "../core/jsonl";
 import type { TeamEvent } from "../core/types";
 import { sampleJsonl } from "../core/sample-data";
@@ -169,6 +169,67 @@ export default function App(): React.JSX.Element {
   const [jsonl, setJsonl] = useState(sampleJsonl);
   const [storedRuns, setStoredRuns] = useState(() => loadRuns());
 
+  const [watchEnabled, setWatchEnabled] = useState(false);
+  const [watchDir, setWatchDir] = useState<string>("");
+  const [watchFilePath, setWatchFilePath] = useState<string>("");
+  const [watchError, setWatchError] = useState<string>("");
+
+  useEffect(() => {
+    const atv = (globalThis as any).ATV;
+    if (!atv?.getWatchConfig) return;
+
+    let cancelled = false;
+
+    const refreshOnce = async () => {
+      try {
+        const res = await atv.readLatestJsonl();
+        if (cancelled) return;
+        if (!res?.ok) {
+          setWatchError(res?.error || "failed-to-read");
+          setWatchFilePath("");
+          return;
+        }
+        setWatchError("");
+        setWatchFilePath(res.filePath || "");
+        if (typeof res.text === "string" && res.text.trim()) {
+          setJsonl(res.text);
+        }
+      } catch (err: any) {
+        if (cancelled) return;
+        setWatchError(err?.message || String(err));
+      }
+    };
+
+    const init = async () => {
+      try {
+        const cfg = await atv.getWatchConfig();
+        if (cancelled) return;
+        const enabled = !!cfg?.enabled;
+        setWatchEnabled(enabled);
+        setWatchDir(cfg?.dir || "");
+        if (!enabled) return;
+
+        await refreshOnce();
+        const timer = window.setInterval(refreshOnce, 1500);
+        return () => window.clearInterval(timer);
+      } catch (err: any) {
+        if (cancelled) return;
+        setWatchError(err?.message || String(err));
+      }
+      return undefined;
+    };
+
+    let cleanup: any = null;
+    void init().then((c) => {
+      cleanup = c;
+    });
+
+    return () => {
+      cancelled = true;
+      if (typeof cleanup === "function") cleanup();
+    };
+  }, []);
+
   const eventsAll = useMemo(() => {
     const parsed = sortByTs(parseJsonl(jsonl));
     const generated = generateStageSummaries(parsed);
@@ -244,6 +305,11 @@ export default function App(): React.JSX.Element {
         <div>
           <div className="title">Agent Team</div>
           <div className="subtitle">左侧：历史运行记录｜中间：成员｜右侧：中文叙述（不显示 JSON）</div>
+          {watchEnabled ? (
+            <div className="subtitle" style={{ marginTop: 6 }}>
+              Watch: {watchDir || "(unknown)"}{watchFilePath ? ` · latest: ${watchFilePath}` : ""}{watchError ? ` · error: ${watchError}` : ""}
+            </div>
+          ) : null}
         </div>
         <div className="actions">
           <button className="button" onClick={() => setJsonl(sampleJsonl)}>载入示例</button>
