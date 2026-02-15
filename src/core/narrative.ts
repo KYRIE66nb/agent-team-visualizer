@@ -12,7 +12,9 @@ export function agentsInRun(events: TeamEvent[]): AgentRef[] {
       m.set(e.to.id, e.to);
     } else if (e.type === "artifact") {
       m.set(e.producer.id, e.producer);
-    } else {
+    } else if (e.type === "agent_status") {
+      m.set(e.agent.id, e.agent);
+    } else if (e.type === "task") {
       m.set(e.agent.id, e.agent);
     }
   }
