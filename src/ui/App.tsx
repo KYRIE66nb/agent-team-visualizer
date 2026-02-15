@@ -66,7 +66,7 @@ function agentNames(events: TeamEvent[]): Map<string, string> {
   return m;
 }
 
-function agentStatusFromTasks(events: TeamEvent[]): Map<string, { lastTs: string; summary: string }> {
+function agentStatusFromTasks(events: TeamEvent[]): Map<string, { lastTs: string; summary: string; currentStage?: string }> {
   const tasksByAgent = new Map<string, TeamEvent[]>();
   for (const e of events) {
     if (e.type !== "task") continue;
@@ -74,7 +74,7 @@ function agentStatusFromTasks(events: TeamEvent[]): Map<string, { lastTs: string
     arr.push(e);
     tasksByAgent.set(e.agent.id, arr);
   }
-  const res = new Map<string, { lastTs: string; summary: string }>();
+  const res = new Map<string, { lastTs: string; summary: string; currentStage?: string }>();
   for (const [agentId, tasks] of tasksByAgent.entries()) {
     tasks.sort((a, b) => ((a as any).ts < (b as any).ts ? -1 : (a as any).ts > (b as any).ts ? 1 : 0));
     const last = tasks[tasks.length - 1] as any;
@@ -83,10 +83,73 @@ function agentStatusFromTasks(events: TeamEvent[]): Map<string, { lastTs: string
     const failed = tasks.filter((t: any) => t.status === "failed").length;
     res.set(agentId, {
       lastTs: last.ts,
-      summary: `tasks: done=${done}, running=${running}, failed=${failed}`
+      currentStage: last.stage,
+      summary: `任务：完成 ${done}，进行中 ${running}，失败 ${failed}`
     });
   }
   return res;
+}
+
+function agentProfile(events: TeamEvent[], agentId: string): string {
+  const related = events.filter((e) => agentIdsFromEvent(e).includes(agentId));
+  related.sort((a, b) => (a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0));
+
+  const sentInstructions = related.filter(
+    (e) => e.type === "message" && e.from.id === agentId && e.channel === "instruction"
+  ) as any[];
+  const receivedInstructions = related.filter(
+    (e) => e.type === "message" && e.to.id === agentId && e.channel === "instruction"
+  ) as any[];
+
+  const artifacts = related.filter((e) => e.type === "artifact") as any[];
+
+  const lastEvent = related[related.length - 1];
+  const lastStage = lastEvent?.stage;
+
+  const formatMsg = (m: any) => {
+    const from = `${m.from?.name ?? m.from?.id}(${m.from?.id})`;
+    const to = `${m.to?.name ?? m.to?.id}(${m.to?.id})`;
+    const body = (m.content_zh ?? m.content ?? "").toString().trim();
+    const head = `${m.ts}${m.stage ? ` stage=${m.stage}` : ""} ${from}→${to}`;
+    return `${head}\n${body}`;
+  };
+
+  const formatArt = (a: any) => {
+    const t = (a.title_zh ?? a.title ?? "").toString();
+    const s = (a.summary_zh ?? a.summary ?? "").toString();
+    const head = `${a.ts}${a.stage ? ` stage=${a.stage}` : ""} ${t}`;
+    return s ? `${head}\n${s}` : head;
+  };
+
+  return [
+    `Agent: ${agentId}`,
+    `最近阶段: ${lastStage ?? "(unknown)"}`,
+    `最近事件: ${lastEvent ? `${lastEvent.ts} type=${lastEvent.type}` : "(none)"}`,
+    "\n收到的领导指令（最近3条）:\n" +
+      (receivedInstructions.length
+        ? receivedInstructions
+            .slice(-3)
+            .reverse()
+            .map(formatMsg)
+            .join("\n\n")
+        : "(none)"),
+    "\n\n发出的领导指令（最近3条）:\n" +
+      (sentInstructions.length
+        ? sentInstructions
+            .slice(-3)
+            .reverse()
+            .map(formatMsg)
+            .join("\n\n")
+        : "(none)"),
+    "\n\n阶段产出（最近3条）:\n" +
+      (artifacts.length
+        ? artifacts
+            .slice(-3)
+            .reverse()
+            .map(formatArt)
+            .join("\n\n")
+        : "(none)"),
+  ].join("\n");
 }
 
 export default function App(): React.JSX.Element {
@@ -272,16 +335,17 @@ export default function App(): React.JSX.Element {
                 {agentFilter !== "all" ? (
                   (() => {
                     const st = agentStatus.get(agentFilter);
-                    return st
-                      ? `${agentNameMap.get(agentFilter) ?? agentFilter}\nlast=${st.lastTs}\n${st.summary}`
+                    const head = st
+                      ? `${agentNameMap.get(agentFilter) ?? agentFilter}\nlast=${st.lastTs}${st.currentStage ? `\nstage=${st.currentStage}` : ""}\n${st.summary}`
                       : "(no task events for this agent)";
+                    return head + "\n\n" + agentProfile(events, agentFilter);
                   })()
                 ) : (
                   agentOptions
                     .map((id) => {
                       const st = agentStatus.get(id);
                       const name = agentNameMap.get(id) ?? id;
-                      return `${name} (${id})${st ? `\n  last=${st.lastTs}\n  ${st.summary}` : "\n  (no task events)"}`;
+                      return `${name} (${id})${st ? `\n  last=${st.lastTs}${st.currentStage ? `\n  stage=${st.currentStage}` : ""}\n  ${st.summary}` : "\n  (no task events)"}`;
                     })
                     .join("\n\n")
                 )}
