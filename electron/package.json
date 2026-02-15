@@ -1,0 +1,10 @@
+{
+  "name": "agent-team-visualizer-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "main": "main.cjs",
+  "type": "commonjs",
+  "scripts": {
+    "start": "electron ."
+  }
+}

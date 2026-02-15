@@ -1,0 +1,28 @@
+{
+  "name": "agent-team-visualizer",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "desktop:dev": "concurrently -k -n VITE,ELECTRON -c blue,green \"vite\" \"wait-on http://localhost:5177 && electron ./electron\""
+  },
+  "dependencies": {
+    "d3": "^7.9.0",
+    "date-fns": "^4.1.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.2",
+    "electron": "^34.2.0",
+    "typescript": "^5.8.2",
+    "vite": "^6.1.0",
+    "wait-on": "^8.0.2"
+  }
+}
