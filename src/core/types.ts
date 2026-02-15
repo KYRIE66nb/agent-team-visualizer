@@ -7,8 +7,9 @@ export type AgentRef = {
 export type EventCommon = {
   id: string;
   ts: string;
-  type: "message" | "artifact" | "task";
+  type: "message" | "artifact" | "task" | "agent_status";
   run_id?: string;
+  run_title_zh?: string;
   stage?: string;
   lang?: string;
   meta?: Record<string, unknown>;
@@ -44,4 +45,15 @@ export type TaskEvent = EventCommon & {
   result?: string;
 };
 
-export type TeamEvent = MessageEvent | ArtifactEvent | TaskEvent;
+export type AgentStatusEvent = EventCommon & {
+  type: "agent_status";
+  agent: AgentRef;
+  status: {
+    state: "idle" | "busy" | "waiting" | "blocked";
+    stage?: string;
+    current_task?: string;
+    summary_zh?: string;
+  };
+};
+
+export type TeamEvent = MessageEvent | ArtifactEvent | TaskEvent | AgentStatusEvent;

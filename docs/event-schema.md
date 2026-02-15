@@ -8,6 +8,7 @@ Each line is one JSON object.
 - `ts` (string) ISO-8601 timestamp
 - `type` (string) event type
 - `run_id` (string) optional: one execution/run
+- `run_title_zh` (string) optional: Chinese run title shown in the left history list
 - `stage` (string) optional: planning|implementation|review|verify|custom
 - `lang` (string) optional: e.g. "zh-CN"
 - `agent` (object) required
@@ -17,6 +18,17 @@ Each line is one JSON object.
 - `meta` (object) optional: arbitrary
 
 ## Types
+
+### agent_status
+
+Explicit runtime status for an agent. Use this to avoid guessing based on task events.
+
+Fields:
+- `agent` agent object
+- `status.state` one of: idle|busy|waiting|blocked
+- `status.stage` (string) optional
+- `status.current_task` (string) optional
+- `status.summary_zh` (string) optional
 
 ### message
 

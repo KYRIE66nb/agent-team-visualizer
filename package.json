@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "desktop:dev": "concurrently -k -n VITE,ELECTRON -c blue,green \"vite\" \"wait-on http://localhost:5177 && electron ./electron\""
+    "desktop:dev": "concurrently -k -n VITE,ELECTRON -c blue,green \"vite\" \"wait-on http://localhost:5177 && electron ./electron\"",
+    "desktop:build": "npm run build && electron-builder",
+    "desktop:dist": "npm run build && electron-builder --publish never"
   },
   "dependencies": {
     "d3": "^7.9.0",
@@ -21,8 +23,38 @@
     "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^9.1.2",
     "electron": "^34.2.0",
+    "electron-builder": "^25.1.8",
+    "playwright": "^1.58.2",
     "typescript": "^5.8.2",
     "vite": "^6.1.0",
     "wait-on": "^8.0.2"
+  },
+  "build": {
+    "appId": "ai.openclaw.agentteamvisualizer",
+    "productName": "Agent Team Visualizer",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**",
+      "electron/**",
+      "package.json"
+    ],
+    "extraMetadata": {
+      "main": "electron/main.cjs"
+    },
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "zip"
+      ]
+    }
   }
 }
