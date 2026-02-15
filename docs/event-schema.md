@@ -13,6 +13,7 @@ Each line is one JSON object.
 - `agent` (object) required
   - `id` (string)
   - `name` (string)
+  - `role` (string) optional: e.g. "lead", "planner", "builder", "reviewer"
 - `meta` (object) optional: arbitrary
 
 ## Types

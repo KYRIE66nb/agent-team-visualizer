@@ -1,6 +1,7 @@
 export type AgentRef = {
   id: string;
   name: string;
+  role?: string;
 };
 
 export type EventCommon = {

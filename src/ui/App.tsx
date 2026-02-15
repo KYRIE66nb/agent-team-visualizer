@@ -2,6 +2,8 @@ import React, { useMemo, useState } from "react";
 import { parseJsonl, sortByTs } from "../core/jsonl";
 import type { TeamEvent } from "../core/types";
 import { sampleJsonl } from "../core/sample-data";
+import { generateStageSummaries } from "../core/autosummary";
+import { extractLeaderPlans, extractTaskBreakdowns, isLeaderAgentId } from "../core/leader";
 
 type EventType = TeamEvent["type"] | "all";
 
@@ -96,7 +98,8 @@ export default function App(): React.JSX.Element {
 
   const events = useMemo(() => {
     const parsed = sortByTs(parseJsonl(jsonl));
-    return parsed;
+    const generated = generateStageSummaries(parsed);
+    return sortByTs([...parsed, ...generated]);
   }, [jsonl]);
 
   const agentNameMap = useMemo(() => agentNames(events), [events]);
@@ -110,6 +113,13 @@ export default function App(): React.JSX.Element {
   const stageOptions = useMemo(() => {
     return uniq(events.map((e) => e.stage).filter(Boolean) as string[]);
   }, [events]);
+
+  const leaderAgentIds = useMemo(() => {
+    return agentOptions.filter((id) => isLeaderAgentId(events, id));
+  }, [agentOptions, events]);
+
+  const leaderPlans = useMemo(() => extractLeaderPlans(events), [events]);
+  const taskBreakdowns = useMemo(() => extractTaskBreakdowns(events), [events]);
 
   const filtered = useMemo(() => {
     return events.filter((e) => {
@@ -213,6 +223,44 @@ export default function App(): React.JSX.Element {
                     {t}
                   </div>
                 ))}
+              </div>
+            </div>
+
+            <div style={{ height: 12 }} />
+
+            <div className="field">
+              <div className="label">Leader 视图（meta.role=lead）</div>
+              <div className="details">
+                {leaderAgentIds.length === 0 ? (
+                  "(no leader detected)"
+                ) : (
+                  [
+                    `Leader agents: ${leaderAgentIds.map((id) => `${agentNameMap.get(id) ?? id}(${id})`).join(", ")}`,
+                    "\n\n中文规划表（leader_plan）:\n" +
+                      (leaderPlans.length
+                        ? leaderPlans
+                            .map((p) => {
+                              const d = p.plan.deliverables_zh?.length ? `\n- 交付物：${p.plan.deliverables_zh.join("；")}` : "";
+                              const m = p.plan.milestones_zh?.length
+                                ? `\n- 里程碑：${p.plan.milestones_zh.map((x) => `${x.done ? "[x]" : "[ ]"} ${x.name}`).join("；")}`
+                                : "";
+                              return `${p.ts}${p.stage ? ` stage=${p.stage}` : ""}\n- 目标：${p.plan.goal_zh ?? ""}${d}${m}\n(ref=${p.rawId})`;
+                            })
+                            .join("\n\n")
+                        : "(none)"),
+                    "\n\n任务拆解表（task_breakdown_zh）:\n" +
+                      (taskBreakdowns.length
+                        ? taskBreakdowns
+                            .map((t) => {
+                              const rows = t.items
+                                .map((it) => `- ${it.id ?? "?"} | owner=${it.owner ?? "?"} | ${it.title ?? ""} | 验收：${it.acceptance ?? ""}`)
+                                .join("\n");
+                              return `${t.ts}${t.stage ? ` stage=${t.stage}` : ""}\n${rows}\n(ref=${t.rawId})`;
+                            })
+                            .join("\n\n")
+                        : "(none)"),
+                  ].join("\n")
+                )}
               </div>
             </div>
 
