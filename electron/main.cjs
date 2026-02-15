@@ -179,20 +179,24 @@ async function createWindow() {
     },
   });
 
-  ipcMain.handle('atv:getWatchConfig', () => {
-    return { enabled: WATCH_MODE, dir: WATCH_DIR };
-  });
+  if (!ipcMain._atvHandlersRegistered) {
+    ipcMain._atvHandlersRegistered = true;
 
-  ipcMain.handle('atv:readLatestJsonl', () => {
-    const latest = pickLatestJsonl(WATCH_DIR);
-    if (!latest) return { ok: false, error: 'no-jsonl-found', dir: WATCH_DIR };
-    try {
-      const text = fs.readFileSync(latest, 'utf8');
-      return { ok: true, filePath: latest, text };
-    } catch (error) {
-      return { ok: false, error: error?.message || String(error), dir: WATCH_DIR };
-    }
-  });
+    ipcMain.handle('atv:getWatchConfig', () => {
+      return { enabled: WATCH_MODE, dir: WATCH_DIR };
+    });
+
+    ipcMain.handle('atv:readLatestJsonl', () => {
+      const latest = pickLatestJsonl(WATCH_DIR);
+      if (!latest) return { ok: false, error: 'no-jsonl-found', dir: WATCH_DIR };
+      try {
+        const text = fs.readFileSync(latest, 'utf8');
+        return { ok: true, filePath: latest, text };
+      } catch (error) {
+        return { ok: false, error: error?.message || String(error), dir: WATCH_DIR };
+      }
+    });
+  }
 
   const attemptedTarget = app.isPackaged
     ? path.join(__dirname, '..', 'dist', 'index.html')
