@@ -20,6 +20,12 @@ A desktop app to **see what your agent team did** (in Chinese), without the blac
 - **Run history**: switch between past runs (by `run_id` + `run_title_zh`)
 - **Auditability**: internally uses JSONL events, but UI shows only Chinese narratives
 
+## Where Is It On My Mac?
+
+Local path (OpenClaw workspace):
+
+- `/Users/zhishixuebao/.openclaw/workspace/projects/agent-team-visualizer`
+
 ## Quick Start (Dev)
 
 Web UI:
