@@ -4,6 +4,8 @@ import type { TeamEvent } from "../core/types";
 import { sampleJsonl } from "../core/sample-data";
 import { generateStageSummaries } from "../core/autosummary";
 import { extractLeaderPlans, extractTaskBreakdowns, isLeaderAgentId } from "../core/leader";
+import { buildThreads } from "../core/thread";
+import { latestAgentRuntimeStatus } from "../core/agent-status";
 
 type EventType = TeamEvent["type"] | "all";
 
@@ -18,12 +20,14 @@ function prettyAgent(a: { id: string; name: string }): string {
 function typeLabel(t: TeamEvent["type"]): string {
   if (t === "message") return "message";
   if (t === "artifact") return "artifact";
+  if (t === "agent_status") return "status";
   return "task";
 }
 
 function badgeClass(t: TeamEvent["type"]): string {
   if (t === "message") return "badge badgeMsg";
   if (t === "artifact") return "badge badgeArt";
+  if (t === "agent_status") return "badge badgeStatus";
   return "badge badgeTask";
 }
 
@@ -36,12 +40,18 @@ function eventTitle(e: TeamEvent): string {
     const t = e.title_zh ?? e.title;
     return `${prettyAgent(e.producer)} 产出: ${t}`;
   }
+  if (e.type === "agent_status") {
+    const st = e.status;
+    const brief = `${st.state}${st.current_task ? ` · ${st.current_task}` : ""}`;
+    return `${prettyAgent(e.agent)} 状态: ${brief}`;
+  }
   return `${prettyAgent(e.agent)} ${e.status}: ${e.title}`;
 }
 
 function preview(e: TeamEvent): string {
   if (e.type === "message") return e.content_zh ?? e.content;
   if (e.type === "artifact") return e.summary_zh ?? e.summary ?? e.content ?? "";
+  if (e.type === "agent_status") return e.status.summary_zh ?? "";
   return e.result ?? "";
 }
 
@@ -158,6 +168,7 @@ export default function App(): React.JSX.Element {
   const [agentFilter, setAgentFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<EventType>("all");
   const [stageFilter, setStageFilter] = useState<string>("all");
+  const [tab, setTab] = useState<"timeline" | "threads">("timeline");
 
   const events = useMemo(() => {
     const parsed = sortByTs(parseJsonl(jsonl));
@@ -183,6 +194,9 @@ export default function App(): React.JSX.Element {
 
   const leaderPlans = useMemo(() => extractLeaderPlans(events), [events]);
   const taskBreakdowns = useMemo(() => extractTaskBreakdowns(events), [events]);
+
+  const threads = useMemo(() => buildThreads(events), [events]);
+  const runtimeStatus = useMemo(() => latestAgentRuntimeStatus(events as any), [events]);
 
   const filtered = useMemo(() => {
     return events.filter((e) => {
@@ -275,7 +289,7 @@ export default function App(): React.JSX.Element {
             <div className="field">
               <div className="label">Type</div>
               <div className="pills">
-                {(["all", "message", "artifact", "task"] as const).map((t) => (
+                {(["all", "message", "artifact", "task", "agent_status"] as const).map((t) => (
                   <div
                     key={t}
                     className={"pill " + (typeFilter === t ? "pillOn" : "")}
@@ -338,7 +352,11 @@ export default function App(): React.JSX.Element {
                     const head = st
                       ? `${agentNameMap.get(agentFilter) ?? agentFilter}\nlast=${st.lastTs}${st.currentStage ? `\nstage=${st.currentStage}` : ""}\n${st.summary}`
                       : "(no task events for this agent)";
-                    return head + "\n\n" + agentProfile(events, agentFilter);
+                    const rt = runtimeStatus.get(agentFilter);
+                    const rtBlock = rt
+                      ? `\n\n运行时状态(显式 agent_status)：\nstate=${rt.status.state}${rt.status.stage ? `\nstage=${rt.status.stage}` : ""}${rt.status.current_task ? `\ncurrent_task=${rt.status.current_task}` : ""}${rt.status.summary_zh ? `\n${rt.status.summary_zh}` : ""}`
+                      : "\n\n运行时状态(显式 agent_status)：\n(none)";
+                    return head + rtBlock + "\n\n" + agentProfile(events, agentFilter);
                   })()
                 ) : (
                   agentOptions
@@ -373,33 +391,60 @@ export default function App(): React.JSX.Element {
                 </div>
               </div>
               <div className="actions">
-                <span className="kbd">Total agents: {agentOptions.length}</span>
+                <button className={"button " + (tab === "timeline" ? "buttonAccent" : "")} onClick={() => setTab("timeline")}>Timeline</button>
+                <button className={"button " + (tab === "threads" ? "buttonAccent" : "")} onClick={() => setTab("threads")}>Threads</button>
+                <span className="kbd">Agents: {agentOptions.length}</span>
               </div>
             </div>
           </div>
 
           <div className="body">
-            <div className="list">
-              {filtered.map((e) => (
-                <div
-                  key={e.id}
-                  className="card"
-                  style={{ borderColor: selectedId === e.id ? "rgba(255,209,102,0.45)" : undefined }}
-                  onClick={() => setSelectedId(e.id)}
-                  role="button"
-                  tabIndex={0}
-                >
-                  <div className="cardTop">
-                    <div>
-                      <div className="cardTitle">{eventTitle(e)}</div>
-                      <div className="cardMeta">{e.ts}{e.stage ? `  ·  stage=${e.stage}` : ""}</div>
+            {tab === "timeline" ? (
+              <div className="list">
+                {filtered.map((e) => (
+                  <div
+                    key={e.id}
+                    className="card"
+                    style={{ borderColor: selectedId === e.id ? "rgba(255,255,255,0.22)" : undefined }}
+                    onClick={() => setSelectedId(e.id)}
+                    role="button"
+                    tabIndex={0}
+                  >
+                    <div className="cardTop">
+                      <div>
+                        <div className="cardTitle">{eventTitle(e)}</div>
+                        <div className="cardMeta">{e.ts}{e.stage ? `  ·  stage=${e.stage}` : ""}</div>
+                      </div>
+                      <div className={badgeClass(e.type)}>{typeLabel(e.type)}</div>
                     </div>
-                    <div className={badgeClass(e.type)}>{typeLabel(e.type)}</div>
+                    <div className="preview">{preview(e)}</div>
                   </div>
-                  <div className="preview">{preview(e)}</div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="list">
+                {threads.map((t) => (
+                  <div
+                    key={t.threadId}
+                    className="card"
+                    onClick={() => setSelectedId(t.messages[t.messages.length - 1]?.id ?? null)}
+                    role="button"
+                    tabIndex={0}
+                  >
+                    <div className="cardTop">
+                      <div>
+                        <div className="cardTitle">{t.title}</div>
+                        <div className="cardMeta">{t.firstTs} → {t.lastTs}</div>
+                      </div>
+                      <div className="badge badgeMsg">thread</div>
+                    </div>
+                    <div className="preview">
+                      {(t.messages[t.messages.length - 1]?.content_zh ?? t.messages[t.messages.length - 1]?.content ?? "").slice(0, 220)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

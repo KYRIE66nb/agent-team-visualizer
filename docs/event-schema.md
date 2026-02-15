@@ -18,6 +18,17 @@ Each line is one JSON object.
 
 ## Types
 
+### agent_status
+
+Explicit runtime status for an agent. Use this to avoid guessing based on task events.
+
+Fields:
+- `agent` agent object
+- `status.state` one of: idle|busy|waiting|blocked
+- `status.stage` (string) optional
+- `status.current_task` (string) optional
+- `status.summary_zh` (string) optional
+
 ### message
 
 Agent-to-agent communication.
