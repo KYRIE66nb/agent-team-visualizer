@@ -11,11 +11,18 @@ export function agentsInRun(events: TeamEvent[]): AgentRef[] {
       m.set(e.from.id, e.from);
       m.set(e.to.id, e.to);
     } else if (e.type === "artifact") {
-      m.set(e.producer.id, e.producer);
+      // Current schema: artifact uses `from` as producer.
+      // Legacy schema: may include `producer`.
+      const p = (e as any).producer ?? (e as any).from;
+      if (p?.id) m.set(p.id, p);
     } else if (e.type === "agent_status") {
-      m.set(e.agent.id, e.agent);
+      // Current schema: agent_status uses `from` as the agent identity.
+      // Legacy schema: may include `agent`.
+      const a = (e as any).agent ?? (e as any).from;
+      if (a?.id) m.set(a.id, a);
     } else if (e.type === "task") {
-      m.set(e.agent.id, e.agent);
+      const a = (e as any).agent;
+      if (a?.id) m.set(a.id, a);
     }
   }
   return [...m.values()].sort((a, b) => a.id.localeCompare(b.id));
