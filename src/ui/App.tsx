@@ -3,9 +3,9 @@ import { parseJsonl, sortByTs } from "../core/jsonl";
 import type { TeamEvent } from "../core/types";
 import { sampleJsonl } from "../core/sample-data";
 import { generateStageSummaries } from "../core/autosummary";
-import { extractLeaderPlans, extractTaskBreakdowns, isLeaderAgentId } from "../core/leader";
-import { buildThreads } from "../core/thread";
-import { latestAgentRuntimeStatus } from "../core/agent-status";
+import { agentsInRun, agentNarrativeZh, leaderPlanZh, taskBreakdownZh } from "../core/narrative";
+import { splitRuns } from "../core/runs";
+import "./layout.css";
 
 type EventType = TeamEvent["type"] | "all";
 
@@ -164,17 +164,31 @@ function agentProfile(events: TeamEvent[], agentId: string): string {
 
 export default function App(): React.JSX.Element {
   const [jsonl, setJsonl] = useState(sampleJsonl);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const eventsAll = useMemo(() => {
+    const parsed = sortByTs(parseJsonl(jsonl));
+    const generated = generateStageSummaries(parsed);
+    return sortByTs([...parsed, ...generated]);
+  }, [jsonl]);
+
+  const runs = useMemo(() => splitRuns(eventsAll), [eventsAll]);
+  const [runId, setRunId] = useState<string>(runs[0]?.runId ?? "default");
+
+  const events = useMemo(() => {
+    const r = runs.find((x) => x.runId === runId) ?? runs[0];
+    return r ? r.events : eventsAll;
+  }, [runs, runId, eventsAll]);
+
+  const members = useMemo(() => agentsInRun(events), [events]);
+  const [selectedAgentId, setSelectedAgentId] = useState<string>(members[0]?.id ?? "");
+
   const [agentFilter, setAgentFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<EventType>("all");
   const [stageFilter, setStageFilter] = useState<string>("all");
   const [tab, setTab] = useState<"timeline" | "threads">("timeline");
 
-  const events = useMemo(() => {
-    const parsed = sortByTs(parseJsonl(jsonl));
-    const generated = generateStageSummaries(parsed);
-    return sortByTs([...parsed, ...generated]);
-  }, [jsonl]);
+  // Keep old filters for now; new UI uses member selection.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const agentNameMap = useMemo(() => agentNames(events), [events]);
 
@@ -188,15 +202,18 @@ export default function App(): React.JSX.Element {
     return uniq(events.map((e) => e.stage).filter(Boolean) as string[]);
   }, [events]);
 
-  const leaderAgentIds = useMemo(() => {
-    return agentOptions.filter((id) => isLeaderAgentId(events, id));
-  }, [agentOptions, events]);
+  const threads = useMemo(() => {
+    // Lazy import removed legacy thread view in this layout refresh; keep timeline-only for now.
+    return [] as any[];
+  }, []);
 
-  const leaderPlans = useMemo(() => extractLeaderPlans(events), [events]);
-  const taskBreakdowns = useMemo(() => extractTaskBreakdowns(events), [events]);
+  const leaderPlanText = useMemo(() => leaderPlanZh(events), [events]);
+  const taskBreakdownText = useMemo(() => taskBreakdownZh(events), [events]);
 
-  const threads = useMemo(() => buildThreads(events), [events]);
-  const runtimeStatus = useMemo(() => latestAgentRuntimeStatus(events as any), [events]);
+  const agentNarrative = useMemo(() => {
+    if (!selectedAgentId) return "";
+    return agentNarrativeZh(events, selectedAgentId);
+  }, [events, selectedAgentId]);
 
   const filtered = useMemo(() => {
     return events.filter((e) => {
@@ -220,163 +237,55 @@ export default function App(): React.JSX.Element {
     <div className="shell">
       <div className="header">
         <div>
-          <div className="title">Agent Team Visualizer</div>
-          <div className="subtitle">
-            Audit multi-agent runs: messages, stage outputs, and task status.
-          </div>
+          <div className="title">Agent Team</div>
+          <div className="subtitle">左侧：历史运行记录｜中间：成员｜右侧：中文叙述（不显示 JSON）</div>
         </div>
-        <div className="kbd">JSONL → Timeline → Details</div>
+        <div className="actions">
+          <button className="button" onClick={() => setJsonl(sampleJsonl)}>载入示例</button>
+        </div>
       </div>
 
-      <div className="grid">
+      <div className="appShell">
         <div className="panel">
           <div className="panelHeader">
             <div className="panelHeaderRow">
               <div>
-                <div className="title" style={{ fontSize: 14 }}>Input</div>
-                <div className="subtitle">Paste JSONL events. One JSON object per line.</div>
+                <div className="title" style={{ fontSize: 12 }}>历史记录</div>
+                <div className="subtitle">基于 run_id 自动分组</div>
               </div>
-              <div className="actions">
-                <button
-                  className="button"
-                  onClick={() => {
-                    setJsonl(sampleJsonl);
-                    setSelectedId(null);
-                  }}
-                >
-                  Load sample
-                </button>
-              </div>
+              <span className="kbd">runs: {runs.length}</span>
             </div>
           </div>
           <div className="body">
-            <textarea
-              className="input"
-              style={{ minHeight: 210, fontFamily: "var(--mono)", fontSize: 12, lineHeight: 1.45 }}
-              value={jsonl}
-              onChange={(e) => setJsonl(e.target.value)}
-            />
-
-            <div style={{ height: 12 }} />
-
-            <div className="split">
-              <div className="field">
-                <div className="label">Agent filter</div>
-                <select className="select" value={agentFilter} onChange={(e) => setAgentFilter(e.target.value)}>
-                  <option value="all">All</option>
-                  {agentOptions.map((id) => (
-                    <option key={id} value={id}>
-                      {agentNameMap.get(id) ?? id} ({id})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="field">
-                <div className="label">Stage filter</div>
-                <select className="select" value={stageFilter} onChange={(e) => setStageFilter(e.target.value)}>
-                  <option value="all">All</option>
-                  {stageOptions.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            <div className="navList">
+              {runs.map((r) => (
+                <div
+                  key={r.runId}
+                  className={"navItem " + (r.runId === runId ? "navItemOn" : "")}
+                  onClick={() => {
+                    setRunId(r.runId);
+                    const m = agentsInRun(r.events);
+                    setSelectedAgentId(m[0]?.id ?? "");
+                  }}
+                  role="button"
+                  tabIndex={0}
+                >
+                  <div className="big">{r.titleZh}</div>
+                  <div className="small">{r.startTs ?? ""} → {r.endTs ?? ""}</div>
+                </div>
+              ))}
             </div>
 
             <div style={{ height: 12 }} />
 
             <div className="field">
-              <div className="label">Type</div>
-              <div className="pills">
-                {(["all", "message", "artifact", "task", "agent_status"] as const).map((t) => (
-                  <div
-                    key={t}
-                    className={"pill " + (typeFilter === t ? "pillOn" : "")}
-                    onClick={() => setTypeFilter(t as EventType)}
-                    role="button"
-                    tabIndex={0}
-                  >
-                    {t}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div style={{ height: 12 }} />
-
-            <div className="field">
-              <div className="label">Leader 视图（meta.role=lead）</div>
-              <div className="details">
-                {leaderAgentIds.length === 0 ? (
-                  "(no leader detected)"
-                ) : (
-                  [
-                    `Leader agents: ${leaderAgentIds.map((id) => `${agentNameMap.get(id) ?? id}(${id})`).join(", ")}`,
-                    "\n\n中文规划表（leader_plan）:\n" +
-                      (leaderPlans.length
-                        ? leaderPlans
-                            .map((p) => {
-                              const d = p.plan.deliverables_zh?.length ? `\n- 交付物：${p.plan.deliverables_zh.join("；")}` : "";
-                              const m = p.plan.milestones_zh?.length
-                                ? `\n- 里程碑：${p.plan.milestones_zh.map((x) => `${x.done ? "[x]" : "[ ]"} ${x.name}`).join("；")}`
-                                : "";
-                              return `${p.ts}${p.stage ? ` stage=${p.stage}` : ""}\n- 目标：${p.plan.goal_zh ?? ""}${d}${m}\n(ref=${p.rawId})`;
-                            })
-                            .join("\n\n")
-                        : "(none)"),
-                    "\n\n任务拆解表（task_breakdown_zh）:\n" +
-                      (taskBreakdowns.length
-                        ? taskBreakdowns
-                            .map((t) => {
-                              const rows = t.items
-                                .map((it) => `- ${it.id ?? "?"} | owner=${it.owner ?? "?"} | ${it.title ?? ""} | 验收：${it.acceptance ?? ""}`)
-                                .join("\n");
-                              return `${t.ts}${t.stage ? ` stage=${t.stage}` : ""}\n${rows}\n(ref=${t.rawId})`;
-                            })
-                            .join("\n\n")
-                        : "(none)"),
-                  ].join("\n")
-                )}
-              </div>
-            </div>
-
-            <div style={{ height: 12 }} />
-
-            <div className="field">
-              <div className="label">Agent 状态（基于 task 事件）</div>
-              <div className="details">
-                {agentFilter !== "all" ? (
-                  (() => {
-                    const st = agentStatus.get(agentFilter);
-                    const head = st
-                      ? `${agentNameMap.get(agentFilter) ?? agentFilter}\nlast=${st.lastTs}${st.currentStage ? `\nstage=${st.currentStage}` : ""}\n${st.summary}`
-                      : "(no task events for this agent)";
-                    const rt = runtimeStatus.get(agentFilter);
-                    const rtBlock = rt
-                      ? `\n\n运行时状态(显式 agent_status)：\nstate=${rt.status.state}${rt.status.stage ? `\nstage=${rt.status.stage}` : ""}${rt.status.current_task ? `\ncurrent_task=${rt.status.current_task}` : ""}${rt.status.summary_zh ? `\n${rt.status.summary_zh}` : ""}`
-                      : "\n\n运行时状态(显式 agent_status)：\n(none)";
-                    return head + rtBlock + "\n\n" + agentProfile(events, agentFilter);
-                  })()
-                ) : (
-                  agentOptions
-                    .map((id) => {
-                      const st = agentStatus.get(id);
-                      const name = agentNameMap.get(id) ?? id;
-                      return `${name} (${id})${st ? `\n  last=${st.lastTs}${st.currentStage ? `\n  stage=${st.currentStage}` : ""}\n  ${st.summary}` : "\n  (no task events)"}`;
-                    })
-                    .join("\n\n")
-                )}
-              </div>
-            </div>
-
-            <div style={{ height: 12 }} />
-
-            <div className="field">
-              <div className="label">Selected event</div>
-              <div className="details">
-                {selected ? JSON.stringify(selected, null, 2) : "(none)"}
-              </div>
+              <div className="label">数据输入（暂时：粘贴 JSONL；后续改成文件导入）</div>
+              <textarea
+                className="input"
+                style={{ minHeight: 160, fontFamily: "var(--mono)", fontSize: 12, lineHeight: 1.45 }}
+                value={jsonl}
+                onChange={(e) => setJsonl(e.target.value)}
+              />
             </div>
           </div>
         </div>
@@ -385,66 +294,51 @@ export default function App(): React.JSX.Element {
           <div className="panelHeader">
             <div className="panelHeaderRow">
               <div>
-                <div className="title" style={{ fontSize: 14 }}>Timeline</div>
-                <div className="subtitle">
-                  {filtered.length} events shown (of {events.length}). Click an event for details.
-                </div>
+                <div className="title" style={{ fontSize: 12 }}>成员</div>
+                <div className="subtitle">点击切换右侧中文叙述</div>
               </div>
-              <div className="actions">
-                <button className={"button " + (tab === "timeline" ? "buttonAccent" : "")} onClick={() => setTab("timeline")}>Timeline</button>
-                <button className={"button " + (tab === "threads" ? "buttonAccent" : "")} onClick={() => setTab("threads")}>Threads</button>
-                <span className="kbd">Agents: {agentOptions.length}</span>
-              </div>
+              <span className="kbd">members: {members.length}</span>
             </div>
           </div>
-
           <div className="body">
-            {tab === "timeline" ? (
-              <div className="list">
-                {filtered.map((e) => (
-                  <div
-                    key={e.id}
-                    className="card"
-                    style={{ borderColor: selectedId === e.id ? "rgba(255,255,255,0.22)" : undefined }}
-                    onClick={() => setSelectedId(e.id)}
-                    role="button"
-                    tabIndex={0}
-                  >
-                    <div className="cardTop">
-                      <div>
-                        <div className="cardTitle">{eventTitle(e)}</div>
-                        <div className="cardMeta">{e.ts}{e.stage ? `  ·  stage=${e.stage}` : ""}</div>
-                      </div>
-                      <div className={badgeClass(e.type)}>{typeLabel(e.type)}</div>
-                    </div>
-                    <div className="preview">{preview(e)}</div>
-                  </div>
-                ))}
+            <div className="memberList">
+              {members.map((m) => (
+                <div
+                  key={m.id}
+                  className={"memberItem " + (m.id === selectedAgentId ? "memberItemOn" : "")}
+                  onClick={() => setSelectedAgentId(m.id)}
+                  role="button"
+                  tabIndex={0}
+                >
+                  <div className="big">{m.name}</div>
+                  <div className="small">id={m.id}{m.role ? ` · role=${m.role}` : ""}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="panel">
+          <div className="panelHeader">
+            <div className="panelHeaderRow">
+              <div>
+                <div className="title" style={{ fontSize: 12 }}>中文叙述</div>
+                <div className="subtitle">规划目标 / 拆解 / 阶段结果 / 指令与回报</div>
               </div>
-            ) : (
-              <div className="list">
-                {threads.map((t) => (
-                  <div
-                    key={t.threadId}
-                    className="card"
-                    onClick={() => setSelectedId(t.messages[t.messages.length - 1]?.id ?? null)}
-                    role="button"
-                    tabIndex={0}
-                  >
-                    <div className="cardTop">
-                      <div>
-                        <div className="cardTitle">{t.title}</div>
-                        <div className="cardMeta">{t.firstTs} → {t.lastTs}</div>
-                      </div>
-                      <div className="badge badgeMsg">thread</div>
-                    </div>
-                    <div className="preview">
-                      {(t.messages[t.messages.length - 1]?.content_zh ?? t.messages[t.messages.length - 1]?.content ?? "").slice(0, 220)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+              <span className="kbd">agent: {selectedAgentId || "(none)"}</span>
+            </div>
+          </div>
+          <div className="body">
+            <div className="doc">
+              <div className="docTitle">领导规划</div>
+              <div className="docSection">{leaderPlanText}</div>
+
+              <div className="docTitle">任务拆解</div>
+              <div className="docSection">{taskBreakdownText}</div>
+
+              <div className="docTitle">成员回报：{members.find((x) => x.id === selectedAgentId)?.name ?? selectedAgentId}</div>
+              <div className="docSection">{agentNarrative}</div>
+            </div>
           </div>
         </div>
       </div>
