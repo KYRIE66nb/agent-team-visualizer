@@ -9,6 +9,7 @@ export type EventCommon = {
   type: "message" | "artifact" | "task";
   run_id?: string;
   stage?: string;
+  lang?: string;
   meta?: Record<string, unknown>;
 };
 
@@ -17,6 +18,7 @@ export type MessageEvent = EventCommon & {
   from: AgentRef;
   to: AgentRef;
   content: string;
+  content_zh?: string;
   channel?: string;
   thread_id?: string;
 };
@@ -25,7 +27,9 @@ export type ArtifactEvent = EventCommon & {
   type: "artifact";
   producer: AgentRef;
   title: string;
+  title_zh?: string;
   summary?: string;
+  summary_zh?: string;
   uri?: string;
   content?: string;
 };

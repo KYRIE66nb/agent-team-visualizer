@@ -9,6 +9,7 @@ Each line is one JSON object.
 - `type` (string) event type
 - `run_id` (string) optional: one execution/run
 - `stage` (string) optional: planning|implementation|review|verify|custom
+- `lang` (string) optional: e.g. "zh-CN"
 - `agent` (object) required
   - `id` (string)
   - `name` (string)
@@ -24,7 +25,8 @@ Fields:
 - `from` agent object
 - `to` agent object
 - `content` (string)
-- `channel` (string) e.g. "handoff", "question", "decision"
+- `content_zh` (string) optional: Chinese rendering of content
+- `channel` (string) e.g. "handoff", "question", "decision", "instruction"
 - `thread_id` (string) optional
 
 ### artifact
@@ -34,7 +36,9 @@ A stage output artifact.
 Fields:
 - `producer` agent object
 - `title` (string)
+- `title_zh` (string) optional
 - `summary` (string)
+- `summary_zh` (string) optional: Chinese summary
 - `uri` (string) optional: file path or URL
 - `content` (string) optional: small inline content
 
