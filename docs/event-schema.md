@@ -8,6 +8,7 @@ Each line is one JSON object.
 - `ts` (string) ISO-8601 timestamp
 - `type` (string) event type
 - `run_id` (string) optional: one execution/run
+- `run_title_zh` (string) optional: Chinese run title shown in the left history list
 - `stage` (string) optional: planning|implementation|review|verify|custom
 - `lang` (string) optional: e.g. "zh-CN"
 - `agent` (object) required

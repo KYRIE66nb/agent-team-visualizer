@@ -9,6 +9,7 @@ export type EventCommon = {
   ts: string;
   type: "message" | "artifact" | "task" | "agent_status";
   run_id?: string;
+  run_title_zh?: string;
   stage?: string;
   lang?: string;
   meta?: Record<string, unknown>;

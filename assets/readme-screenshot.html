@@ -1,0 +1,33 @@
+<!doctype html><html><head><meta charset="utf-8"/><style>
+body{margin:0;background:#0b0d10;color:rgba(255,255,255,.92);font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;}
+.wrap{padding:26px;}
+.card{max-width:980px;margin:0 auto;border:1px solid rgba(255,255,255,.1);border-radius:16px;background:rgba(255,255,255,.03);box-shadow:0 18px 50px rgba(0,0,0,.5);overflow:hidden}
+.head{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.08)}
+.badge{font:12px ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;color:rgba(255,255,255,.65)}
+.cols{display:grid;grid-template-columns:280px 320px 1fr;gap:12px;padding:12px}
+.panel{border:1px solid rgba(255,255,255,.1);border-radius:12px;background:rgba(255,255,255,.02);padding:12px;min-height:360px}
+.h{font-size:12px;letter-spacing:.2px;text-transform:uppercase;color:rgba(255,255,255,.82);margin:0 0 10px}
+.item{border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:10px;margin:0 0 10px}
+.small{color:rgba(255,255,255,.62);font-size:12px}
+.title{color:rgba(255,255,255,.88);font-weight:650;margin:0 0 6px}
+.doc{white-space:pre-wrap}
+</style></head><body><div class="wrap"><div class="card">
+<div class="head"><div><div style="font-weight:700">Agent Team Visualizer</div><div class="small">左：历史运行｜中：成员｜右：中文叙述</div></div><div class="badge">demo screenshot</div></div>
+<div class="cols">
+<div class="panel"><div class="h">历史记录</div><div class="item"><div class="title">示例：Agent Team 可视化 MVP</div><div class="small">2026-02-15 19:00 → 19:12</div></div></div>
+<div class="panel"><div class="h">成员</div><div class="item"><div class="title">Lead</div><div class="small">role=lead</div></div><div class="item"><div class="title">Planner</div><div class="small">role=planner</div></div><div class="item"><div class="title">Builder</div><div class="small">role=builder</div></div></div>
+<div class="panel"><div class="h">中文叙述</div><div class="doc">领导规划
+目标：做一个可审计的多 Agent 可视化桌面应用
+交付物：事件规范(JSONL)；时间线视图；过滤器+详情审计
+
+任务拆解
+- t1：初始化 Vite+React（owner=builder）
+  验收：能跑起来并显示 sample
+
+成员回报：Builder
+当前状态：busy
+当前任务：实现过滤器
+阶段产出：
+- 初版界面
+  左侧过滤器 + 右侧时间线列表 + 事件详情审计面板</div></div>
+</div></div></div></div></body></html>

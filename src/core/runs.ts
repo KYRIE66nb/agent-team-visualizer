@@ -1,4 +1,5 @@
 import type { TeamEvent } from "./types";
+import { runTitleZh } from "./run-meta";
 
 export type RunRecord = {
   runId: string;
@@ -35,7 +36,7 @@ export function splitRuns(events: TeamEvent[]): RunRecord[] {
       .sort((a, b) => (a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0));
     runs.push({
       runId: id,
-      titleZh: `运行 ${id}`,
+      titleZh: runTitleZh(events, id),
       startTs: ev[0]?.ts,
       endTs: ev[ev.length - 1]?.ts,
       events: ev,
