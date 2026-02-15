@@ -84,3 +84,38 @@
   padding: 10px 0;
   border-top: 1px solid rgba(255,255,255,0.08);
 }
+
+.tabRow {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
+.chat {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bubble {
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.02);
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.bubbleMeta {
+  font-size: 12px;
+  color: rgba(255,255,255,0.62);
+  margin-bottom: 6px;
+}
+
+.flag {
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.02);
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.flagRisk { border-color: rgba(255, 92, 119, 0.38); }
+.flagWarn { border-color: rgba(255, 209, 102, 0.30); }

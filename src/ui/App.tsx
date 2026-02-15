@@ -5,6 +5,9 @@ import { sampleJsonl } from "../core/sample-data";
 import { generateStageSummaries } from "../core/autosummary";
 import { agentsInRun, agentNarrativeZh, leaderPlanZh, taskBreakdownZh } from "../core/narrative";
 import { splitRuns } from "../core/runs";
+import { buildThreads } from "../core/thread";
+import { computeFlags } from "../core/flags";
+import { loadRuns, saveRuns, toStoredRun, upsertRun } from "../core/storage";
 import "./layout.css";
 
 type EventType = TeamEvent["type"] | "all";
@@ -164,6 +167,7 @@ function agentProfile(events: TeamEvent[], agentId: string): string {
 
 export default function App(): React.JSX.Element {
   const [jsonl, setJsonl] = useState(sampleJsonl);
+  const [storedRuns, setStoredRuns] = useState(() => loadRuns());
 
   const eventsAll = useMemo(() => {
     const parsed = sortByTs(parseJsonl(jsonl));
@@ -181,6 +185,12 @@ export default function App(): React.JSX.Element {
 
   const members = useMemo(() => agentsInRun(events), [events]);
   const [selectedAgentId, setSelectedAgentId] = useState<string>(members[0]?.id ?? "");
+
+  const threads = useMemo(() => buildThreads(events), [events]);
+  const flags = useMemo(() => computeFlags(events), [events]);
+
+  const [rightTab, setRightTab] = useState<"叙述" | "对话">("叙述");
+  const [threadId, setThreadId] = useState<string>(threads[0]?.threadId ?? "");
 
   const [agentFilter, setAgentFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<EventType>("all");
@@ -201,11 +211,6 @@ export default function App(): React.JSX.Element {
   const stageOptions = useMemo(() => {
     return uniq(events.map((e) => e.stage).filter(Boolean) as string[]);
   }, [events]);
-
-  const threads = useMemo(() => {
-    // Lazy import removed legacy thread view in this layout refresh; keep timeline-only for now.
-    return [] as any[];
-  }, []);
 
   const leaderPlanText = useMemo(() => leaderPlanZh(events), [events]);
   const taskBreakdownText = useMemo(() => taskBreakdownZh(events), [events]);
@@ -242,6 +247,36 @@ export default function App(): React.JSX.Element {
         </div>
         <div className="actions">
           <button className="button" onClick={() => setJsonl(sampleJsonl)}>载入示例</button>
+          <input
+            type="file"
+            accept=".jsonl,.txt,application/json,text/plain"
+            style={{ display: "none" }}
+            id="fileInput"
+            onChange={async (e) => {
+              const f = e.target.files?.[0];
+              if (!f) return;
+              const text = await f.text();
+              setJsonl(text);
+            }}
+          />
+          <button
+            className="button"
+            onClick={() => document.getElementById("fileInput")?.click()}
+          >
+            导入 .jsonl
+          </button>
+          <button
+            className="button"
+            onClick={() => {
+              const r = runs.find((x) => x.runId === runId) ?? runs[0];
+              if (!r) return;
+              const next = upsertRun(storedRuns, toStoredRun(r, jsonl));
+              setStoredRuns(next);
+              saveRuns(next);
+            }}
+          >
+            保存到历史
+          </button>
         </div>
       </div>
 
@@ -251,9 +286,9 @@ export default function App(): React.JSX.Element {
             <div className="panelHeaderRow">
               <div>
                 <div className="title" style={{ fontSize: 12 }}>历史记录</div>
-                <div className="subtitle">基于 run_id 自动分组</div>
+                <div className="subtitle">本次运行 + 已保存历史</div>
               </div>
-              <span className="kbd">runs: {runs.length}</span>
+              <span className="kbd">runs: {runs.length} + saved: {storedRuns.length}</span>
             </div>
           </div>
           <div className="body">
@@ -272,6 +307,27 @@ export default function App(): React.JSX.Element {
                 >
                   <div className="big">{r.titleZh}</div>
                   <div className="small">{r.startTs ?? ""} → {r.endTs ?? ""}</div>
+                </div>
+              ))}
+
+              {storedRuns.length ? (
+                <div style={{ height: 8 }} />
+              ) : null}
+
+              {storedRuns.map((r) => (
+                <div
+                  key={"saved:" + r.runId}
+                  className={"navItem"}
+                  onClick={() => {
+                    setJsonl(r.jsonl);
+                    setRunId(r.runId);
+                    setSelectedAgentId(agentsInRun(parseJsonl(r.jsonl) as any)[0]?.id ?? "");
+                  }}
+                  role="button"
+                  tabIndex={0}
+                >
+                  <div className="big">{r.titleZh}</div>
+                  <div className="small">(saved) {r.startTs ?? ""} → {r.endTs ?? ""}</div>
                 </div>
               ))}
             </div>
@@ -329,16 +385,62 @@ export default function App(): React.JSX.Element {
             </div>
           </div>
           <div className="body">
-            <div className="doc">
-              <div className="docTitle">领导规划</div>
-              <div className="docSection">{leaderPlanText}</div>
-
-              <div className="docTitle">任务拆解</div>
-              <div className="docSection">{taskBreakdownText}</div>
-
-              <div className="docTitle">成员回报：{members.find((x) => x.id === selectedAgentId)?.name ?? selectedAgentId}</div>
-              <div className="docSection">{agentNarrative}</div>
+            <div className="tabRow">
+              <button className={"button " + (rightTab === "叙述" ? "buttonAccent" : "")} onClick={() => setRightTab("叙述")}>叙述</button>
+              <button className={"button " + (rightTab === "对话" ? "buttonAccent" : "")} onClick={() => setRightTab("对话")}>对话</button>
+              <span className="kbd">flags: {flags.length}</span>
             </div>
+
+            {flags.length ? (
+              <div className="docSection">
+                {flags.map((f, idx) => (
+                  <div key={idx} className={"flag " + (f.level === "risk" ? "flagRisk" : "flagWarn")}>
+                    <div className="big">{f.level === "risk" ? "风险" : "提醒"}：{f.titleZh}</div>
+                    {f.detailZh ? <div className="small">{f.detailZh}</div> : null}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            {rightTab === "叙述" ? (
+              <div className="doc">
+                <div className="docTitle">领导规划</div>
+                <div className="docSection">{leaderPlanText}</div>
+
+                <div className="docTitle">任务拆解</div>
+                <div className="docSection">{taskBreakdownText}</div>
+
+                <div className="docTitle">成员回报：{members.find((x) => x.id === selectedAgentId)?.name ?? selectedAgentId}</div>
+                <div className="docSection">{agentNarrative}</div>
+              </div>
+            ) : (
+              <div>
+                <div className="field">
+                  <div className="label">选择对话线程</div>
+                  <select className="select" value={threadId} onChange={(e) => setThreadId(e.target.value)}>
+                    <option value="">(none)</option>
+                    {threads.map((t) => (
+                      <option key={t.threadId} value={t.threadId}>
+                        {t.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ height: 12 }} />
+
+                <div className="chat">
+                  {(threads.find((t) => t.threadId === threadId)?.messages ?? []).map((m) => (
+                    <div key={m.id} className="bubble">
+                      <div className="bubbleMeta">
+                        {m.ts}{m.stage ? ` · ${m.stage}` : ""} · {m.from.name} → {m.to.name}{m.channel ? ` · ${m.channel}` : ""}
+                      </div>
+                      <div>{m.content_zh ?? m.content}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
